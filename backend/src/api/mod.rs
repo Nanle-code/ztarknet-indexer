@@ -1,13 +1,13 @@
 use axum::{
-    extract::{State, Query, ws::{WebSocket, WebSocketUpgrade}},
+    extract::{State, Query, Path, ws::{WebSocket, WebSocketUpgrade}},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::get,
     Json, Router,
 };
 use crate::models::{Transaction, TransactionStats, Alert, QueryParams};
-use std::sync::Arc;
 use tower_http::cors::CorsLayer;
+use sqlx::Row;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -58,16 +58,31 @@ async fn get_transactions(
 
 async fn get_transaction_by_hash(
     State(state): State<AppState>,
-    axum::extract::Path(hash): axum::extract::Path<String>,
+    Path(hash): Path<String>,
 ) -> Result<Json<Transaction>, StatusCode> {
-    let tx = sqlx::query_as!(
-        Transaction,
-        "SELECT * FROM monitored_transactions WHERE tx_hash = $1",
-        hash
+    let row = sqlx::query(
+        "SELECT * FROM monitored_transactions WHERE tx_hash = $1"
     )
+    .bind(&hash)
     .fetch_one(&state.db)
     .await
     .map_err(|_| StatusCode::NOT_FOUND)?;
+    
+    let tx = Transaction {
+        id: row.get("id"),
+        tx_hash: row.get("tx_hash"),
+        tx_type: row.get("tx_type"),
+        status: row.get("status"),
+        from_address: row.get("from_address"),
+        to_address: row.get("to_address"),
+        amount: row.get("amount"),
+        gas_used: row.get("gas_used"),
+        gas_price: row.get("gas_price"),
+        block_number: row.get("block_number"),
+        block_timestamp: row.get("block_timestamp"),
+        created_at: row.get("created_at"),
+        updated_at: row.get("updated_at"),
+    };
     
     Ok(Json(tx))
 }

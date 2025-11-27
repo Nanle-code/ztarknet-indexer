@@ -1,7 +1,8 @@
 use crate::models::{Alert, AlertConfig, Transaction};
 use anyhow::Result;
-use lettre::{Message, SmtpTransport, Transport};
+use lettre::message::header::ContentType;
 use lettre::transport::smtp::authentication::Credentials;
+use lettre::{Message, SmtpTransport, Transport};
 use teloxide::prelude::*;
 use uuid::Uuid;
 
@@ -13,7 +14,6 @@ pub async fn check_and_send_alerts(
 ) -> Result<()> {
     let mut alerts = Vec::new();
     
-    // Check for large transactions
     if let Ok(amount) = tx.amount.parse::<f64>() {
         if amount > config.large_tx_threshold {
             let alert = Alert {
@@ -36,7 +36,6 @@ pub async fn check_and_send_alerts(
         }
     }
     
-    // Check for failed transactions
     if config.failed_tx_enabled && tx.status == "failed" {
         let alert = Alert {
             id: Uuid::new_v4(),
@@ -54,32 +53,27 @@ pub async fn check_and_send_alerts(
         alerts.push(alert);
     }
     
-    // Send alerts
     for alert in alerts {
-        // Send email
         if config.email_enabled {
-            send_email_alert(&alert, config).await?;
+            if let Err(e) = send_email_alert(&alert, config).await {
+                tracing::error!("Failed to send email: {}", e);
+            }
         }
         
-        // Send Telegram
         if config.telegram_enabled {
-            send_telegram_alert(&alert, config).await?;
+            if let Err(e) = send_telegram_alert(&alert, config).await {
+                tracing::error!("Failed to send telegram: {}", e);
+            }
         }
         
-        // Save to database
         crate::database::insert_alert(pool, &alert).await?;
-        
-        // Broadcast to WebSocket
         let _ = alert_sender.send(alert);
     }
     
     Ok(())
 }
 
-async fn send_email_alert(
-    alert: &Alert,
-    config: &AlertConfig,
-) -> Result<()> {
+async fn send_email_alert(alert: &Alert, config: &AlertConfig) -> Result<()> {
     let smtp_host = std::env::var("SMTP_HOST")?;
     let smtp_port = std::env::var("SMTP_PORT")?;
     let smtp_user = std::env::var("SMTP_USERNAME")?;
@@ -90,8 +84,9 @@ async fn send_email_alert(
             .from(format!("Pharos Monitor <{}>", smtp_user).parse()?)
             .to(recipient.parse()?)
             .subject(format!("🚨 Pharos Alert: {}", alert.alert_type))
+            .header(ContentType::TEXT_PLAIN)
             .body(format!(
-                "Alert Type: {}\nSeverity: {}\nMessage: {}\nTx Hash: {}\nTimestamp: {}",
+                "Alert: {}\nSeverity: {}\nMessage: {}\nTx: {}\nTime: {}",
                 alert.alert_type,
                 alert.severity,
                 alert.message,
@@ -111,10 +106,7 @@ async fn send_email_alert(
     Ok(())
 }
 
-async fn send_telegram_alert(
-    alert: &Alert,
-    config: &AlertConfig,
-) -> Result<()> {
+async fn send_telegram_alert(alert: &Alert, config: &AlertConfig) -> Result<()> {
     if let Some(chat_id) = config.telegram_chat_id {
         let bot = Bot::from_env();
         
@@ -133,7 +125,7 @@ async fn send_telegram_alert(
         );
         
         bot.send_message(ChatId(chat_id), message)
-            .parse_mode(teloxide::types::ParseMode::Markdown)
+            .parse_mode(teloxide::types::ParseMode::MarkdownV2)
             .await?;
     }
     

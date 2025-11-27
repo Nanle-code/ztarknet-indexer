@@ -21,7 +21,9 @@ pub async fn monitor_blocks(
     
     while let Some(block) = stream.next().await {
         if let Some(block_number) = block.number {
-            process_block(&provider, block_number, &tx_sender, &pool).await?;
+            if let Err(e) = process_block(&provider, block_number, &tx_sender, &pool).await {
+                tracing::error!("Error processing block {}: {}", block_number, e);
+            }
         }
     }
     
@@ -42,22 +44,15 @@ async fn process_block(
     tracing::debug!("📦 Processing block {}", block_number);
     
     for tx in block.transactions {
-        if let Ok(receipt) = provider.get_transaction_receipt(tx.hash).await {
-            if let Some(receipt) = receipt {
-                let monitored_tx = create_monitored_tx(&tx, &receipt, &block);
-                
-                // Save to database
-                if let Err(e) = crate::database::insert_transaction(
-                    pool, 
-                    &monitored_tx
-                ).await {
-                    tracing::error!("Failed to save tx: {}", e);
-                    continue;
-                }
-                
-                // Broadcast to WebSocket clients
-                let _ = tx_sender.send(monitored_tx);
+        if let Ok(Some(receipt)) = provider.get_transaction_receipt(tx.hash).await {
+            let monitored_tx = create_monitored_tx(&tx, &receipt, &block);
+            
+            if let Err(e) = crate::database::insert_transaction(pool, &monitored_tx).await {
+                tracing::error!("Failed to save tx: {}", e);
+                continue;
             }
+            
+            let _ = tx_sender.send(monitored_tx);
         }
     }
     
@@ -94,17 +89,18 @@ fn create_monitored_tx(
 }
 
 fn classify_transaction(tx: &Transaction) -> String {
-    // Function signature matching for Pharos dApps
-    if let Some(data) = tx.input.get(..4) {
-        let selector = format!("{:02x}{:02x}{:02x}{:02x}", 
-            data[0], data[1], data[2], data[3]);
+    if tx.input.len() >= 4 {
+        let selector = format!(
+            "{:02x}{:02x}{:02x}{:02x}", 
+            tx.input[0], tx.input[1], tx.input[2], tx.input[3]
+        );
         
         match selector.as_str() {
-            "38ed1739" => "swap".to_string(),      // swapExactTokensForTokens
-            "a694fc3a" => "stake".to_string(),     // stake
-            "c5eabedf" => "lend".to_string(),      // lend
-            "e8eda9df" => "borrow".to_string(),    // borrow
-            "e2bbb158" => "deposit".to_string(),   // addLiquidity
+            "38ed1739" => "swap".to_string(),
+            "a694fc3a" => "stake".to_string(),
+            "c5eabedf" => "lend".to_string(),
+            "e8eda9df" => "borrow".to_string(),
+            "e2bbb158" => "deposit".to_string(),
             _ => "transfer".to_string(),
         }
     } else {
