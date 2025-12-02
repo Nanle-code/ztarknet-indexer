@@ -112,7 +112,10 @@ pub async fn get_stats(pool: &PgPool) -> Result<TransactionStats> {
     let success_rate: Option<f64> = row.try_get("success_rate").ok();
     let failed_rate: Option<f64> = row.try_get("failed_rate").ok();
     let avg_gas: Option<f64> = row.try_get("avg_gas").ok();
-    let total_vol: Option<sqlx::types::Decimal> = row.try_get("total_vol").ok();
+    let total_vol: Option<String> = row.try_get::<Option<f64>, _>("total_vol")
+        .ok()
+        .flatten()
+        .map(|v| v.to_string());
     let active_users: i64 = row.get("active_users");
     
     let tps = total_txs as f64 / 3600.0;
@@ -122,9 +125,7 @@ pub async fn get_stats(pool: &PgPool) -> Result<TransactionStats> {
         success_rate: success_rate.unwrap_or(0.0),
         failed_rate: failed_rate.unwrap_or(0.0),
         avg_gas_used: avg_gas.unwrap_or(0.0),
-        total_volume: total_vol
-            .map(|v| v.to_string())
-            .unwrap_or_else(|| "0".to_string()),
+        total_volume: total_vol.unwrap_or_else(|| "0".to_string()),
         active_users,
         tps,
     })

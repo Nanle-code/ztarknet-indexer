@@ -43,6 +43,8 @@ async fn get_transactions(
     let limit = params.limit.unwrap_or(50).min(500);
     let offset = params.offset.unwrap_or(0);
     
+    tracing::info!("Fetching transactions with status: {:?}, type: {:?}", params.status, params.tx_type);
+    
     let txs = crate::database::get_transactions(
         &state.db,
         params.status,
@@ -51,7 +53,10 @@ async fn get_transactions(
         offset,
     )
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| {
+        tracing::error!("Failed to get transactions: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     
     Ok(Json(txs))
 }

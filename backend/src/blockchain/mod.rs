@@ -43,9 +43,9 @@ async fn process_block(
     
     tracing::debug!("📦 Processing block {}", block_number);
     
-    for tx in block.transactions {
+    for tx in &block.transactions {
         if let Ok(Some(receipt)) = provider.get_transaction_receipt(tx.hash).await {
-            let monitored_tx = create_monitored_tx(&tx, &receipt, &block);
+            let monitored_tx = create_monitored_tx(tx, &receipt, &block);
             
             if let Err(e) = crate::database::insert_transaction(pool, &monitored_tx).await {
                 tracing::error!("Failed to save tx: {}", e);

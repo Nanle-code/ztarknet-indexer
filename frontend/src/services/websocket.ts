@@ -1,19 +1,23 @@
-import { Transaction, Alert } from '../types';
-
 class WebSocketService {
   private ws: WebSocket | null = null;
   private reconnectInterval = 5000;
   private url: string;
+  private listeners: {
+    transaction: Array<(data: any) => void>;
+    alert: Array<(data: any) => void>;
+    error: Array<(error: Event) => void>;
+  };
 
   constructor(url: string) {
     this.url = url;
+    this.listeners = {
+      transaction: [],
+      alert: [],
+      error: [],
+    };
   }
 
-  connect(
-    onTransaction: (tx: Transaction) => void,
-    onAlert: (alert: Alert) => void,
-    onError?: (error: Event) => void
-  ) {
+  connect() {
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
@@ -25,9 +29,9 @@ class WebSocketService {
         const message = JSON.parse(event.data);
         
         if (message.type === 'transaction') {
-          onTransaction(message.data);
+          this.listeners.transaction.forEach(callback => callback(message.data));
         } else if (message.type === 'alert') {
-          onAlert(message.data);
+          this.listeners.alert.forEach(callback => callback(message.data));
         }
       } catch (error) {
         console.error('WebSocket message error:', error);
@@ -36,15 +40,21 @@ class WebSocketService {
 
     this.ws.onerror = (error) => {
       console.error('❌ WebSocket error:', error);
-      if (onError) onError(error);
+      this.listeners.error.forEach(callback => callback(error));
     };
 
     this.ws.onclose = () => {
       console.log('🔌 WebSocket disconnected. Reconnecting...');
       setTimeout(() => {
-        this.connect(onTransaction, onAlert, onError);
+        this.connect();
       }, this.reconnectInterval);
     };
+  }
+
+  on(event: 'transaction' | 'alert' | 'error', callback: (data: any) => void) {
+    if (this.listeners[event]) {
+      this.listeners[event].push(callback);
+    }
   }
 
   disconnect() {
