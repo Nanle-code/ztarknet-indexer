@@ -780,7 +780,7 @@ const TransactionMonitor = () => {
                   </h1>
                   <p style={{ color: '#94a3b8', margin: '4px 0 0 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Shield style={{ width: '12px', height: '12px', color: '#06b6d4' }} />
-                    Starknet L2 on ZCash Monitoring • Real-time Blockchain Analytics
+                    Ztarknet L2 on ZCash Monitoring • Real-time Blockchain Analytics
                   </p>
                 </div>
               </div>
