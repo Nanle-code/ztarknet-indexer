@@ -104,21 +104,48 @@ const TransactionMonitor = () => {
   };
 
   // Load initial data
-  useEffect(() => {
-    const loadInitialData = async () => {
-      setLoading(true);
-      await Promise.all([
-        loadTransactions(),
-        loadStats(),
-        loadAlerts()
-      ]);
-      setLoading(false);
-    };
+  // useEffect(() => {
+  //   const loadInitialData = async () => {
+  //     setLoading(true);
+  //     await Promise.all([
+  //       loadTransactions(),
+  //       loadStats(),
+  //       loadAlerts()
+  //     ]);
+  //     setLoading(false);
+  //   };
 
-    loadInitialData();
-    const interval = setInterval(loadStats, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  //   loadInitialData();
+  //   const interval = setInterval(loadStats, 10000);
+  //   return () => clearInterval(interval);
+  // }, []);
+  // Load initial data
+  useEffect(() => {
+  const loadData = async () => {
+    console.log('Loading data...');
+    setLoading(true);
+    
+    try {
+      const txResponse = await fetch('http://localhost:3000/api/transactions?limit=50');
+      const txData = await txResponse.json();
+      console.log('Transactions loaded:', txData.length);
+      setTransactions(txData);
+      
+      const statsResponse = await fetch('http://localhost:3000/api/stats');
+      const statsData = await statsResponse.json();
+      console.log('Stats loaded:', statsData);
+      setStats(statsData);
+      
+      setAlerts([]);
+    } catch (error) {
+      console.error('Error:', error);
+    }
+    
+    setLoading(false);
+  };
+  
+  loadData();
+}, []);
 
   // Setup WebSocket
   useEffect(() => {
@@ -225,7 +252,7 @@ const TransactionMonitor = () => {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 flex items-center justify-center">
         <div className="text-center">
           <Activity className="w-16 h-16 text-indigo-400 animate-spin mx-auto mb-4" />
-          <div className="text-white text-2xl font-semibold">Loading Pharos Monitor...</div>
+          <div className="text-white text-2xl font-semibold">Loading Ztarknet Monitor...</div>
         </div>
       </div>
     );
@@ -242,8 +269,8 @@ const TransactionMonitor = () => {
                 <Activity className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-white mb-1">Pharos Transaction Monitor</h1>
-                <p className="text-indigo-200">Real-time blockchain monitoring system</p>
+                <h1 className="text-3xl font-bold text-white mb-1">Ztarknet Transaction Monitor</h1>
+                <p className="text-indigo-200">Starknet L2 on ZCash Monitoring</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -392,7 +419,7 @@ const TransactionMonitor = () => {
                     <td className="p-4 text-gray-300 font-mono text-sm">{(tx.block_number || 0).toLocaleString()}</td>
                     <td className="p-4 text-gray-400 text-sm">
                       {tx.block_timestamp ? new Date(tx.block_timestamp).toLocaleTimeString() : 'N/A'}
-                    </td>
+                    </td> 
                   </tr>
                 ))}
               </tbody>
@@ -410,7 +437,7 @@ const TransactionMonitor = () => {
 
         {/* Footer */}
         <div className="mt-8 text-center text-gray-400 text-sm">
-          <p>Monitoring Pharos Blockchain • Built with Rust + React + PostgreSQL</p>
+          <p>Monitoring Ztarknet Blockchain</p>
         </div>
       </div>
     </div>

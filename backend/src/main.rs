@@ -15,7 +15,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,pharos_monitor=debug".into()),
+                .unwrap_or_else(|_| "info,ztarknet_monitor=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -23,11 +23,12 @@ async fn main() -> Result<()> {
     // Load environment variables
     dotenvy::dotenv().ok();
 
-    tracing::info!("🚀 Starting Pharos Transaction Monitor");
+    tracing::info!("🚀 Starting Ztarknet Transaction Monitor");
 
     // Configuration
     let database_url = std::env::var("DATABASE_URL")?;
-    let wss_rpc = std::env::var("PHAROS_WSS_RPC")?;
+    let rpc_url = std::env::var("ZTARKNET_RPC")
+        .unwrap_or_else(|_| "http://localhost:9944".to_string());
     let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
 
@@ -57,7 +58,7 @@ async fn main() -> Result<()> {
             .ok()
             .and_then(|s| s.parse().ok()),
     };
-    let alert_config = Arc::new(tokio::sync::RwLock::new(alert_config));
+    let _alert_config = Arc::new(tokio::sync::RwLock::new(alert_config));
 
     // Setup database
     let db = database::create_pool(&database_url).await?;
@@ -74,16 +75,14 @@ async fn main() -> Result<()> {
         alert_sender: alert_sender.clone(),
     };
 
-    // Connect to Pharos blockchain
-    let provider = blockchain::connect_provider(&wss_rpc).await?;
+    // Connect to Ztarknet blockchain
+    let provider = blockchain::connect_provider(&rpc_url).await?;
     let provider = Arc::new(provider);
 
     // Start blockchain monitor in background
     let monitor_provider = provider.clone();
     let monitor_tx_sender = tx_sender.clone();
-    let monitor_alert_sender = alert_sender.clone();
     let monitor_db = db.clone();
-    let monitor_config = alert_config.clone();
     
     tokio::spawn(async move {
         loop {
