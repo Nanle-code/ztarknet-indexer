@@ -27,3 +27,4 @@
    - Observe how **on-chain activities are tracked live** by Chronos
 
 LIVE LINK: http://ztarknet.surge.sh/
+DEMO VIDEO: https://www.loom.com/share/8ad1d6a007764a0f94e08664eab5cf5b
